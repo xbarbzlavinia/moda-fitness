@@ -462,7 +462,7 @@ legend a{color:var(--gold);text-transform:none;letter-spacing:0;font:500 13px va
   <div class="df" id="cfoot">
     <div class="tot"><span>Total</span><b id="cTotal">R$ 0,00</b></div>
     <p class="note">Pagamento à vista, sem parcelamento. O frete é combinado com a OFF no WhatsApp.</p>
-    <button class="btn wide" id="goCheckout">Finalizar pedido</button>
+    <button class="btn wide" id="goCheckout">Finalizar pelo WhatsApp</button>
     <button class="btn ghost wide" data-close>Continuar comprando</button>
   </div>
 </aside></div>
@@ -478,7 +478,7 @@ legend a{color:var(--gold);text-transform:none;letter-spacing:0;font:500 13px va
 var CONFIG = {
   whatsapp: "5527997559212",                 // WhatsApp da Rúbia só com números, com DDI+DDD. Ex.: "5511999999999"
   instagram: "https://instagram.com/off_modafitness",                // Ex.: "https://instagram.com/offmodafitness"
-  paymentUrl: "https://SEU-LINK-DE-PAGAMENTO.com.br/pagar", // Link de pagamento (InfinitePay). Aceita ?pedido=CODIGO&valor=TOTAL
+  siteUrl: "https://xbarbzlavinia.github.io/moda-fitness/",                  // Endereço do site publicado (ex.: "https://www.offmodafitness.com.br/"). Usado nos links das peças enviados no WhatsApp
   storeName: "OFF Moda Fitness"
 };
 /* ================================================== */
@@ -635,14 +635,12 @@ var order = null;
 function makeCode(){ var a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789", s=""; for(var i=0;i<5;i++) s+=a[Math.floor(Math.random()*a.length)]; return "OFF-"+s }
 $("#goCheckout").onclick = function(){ closeOv($("#cov")); openForm() };
 function openForm(){
-  var pay = (order&&order.pay)||"Pix";
-  $("#kbody").innerHTML = '<h3 id="kTitle">Finalizar pedido</h3><p class="lede">Confira os itens, preencha seus dados e gere o código do pedido.</p>'
+  $("#kbody").innerHTML = '<h3 id="kTitle">Finalizar pedido</h3><p class="lede">Confira os itens e preencha seus dados. Depois é só enviar o pedido para a OFF pelo WhatsApp.</p>'
    + '<div class="mini">'+cart.map(function(i){return '<div><span>'+i.qty+'× '+esc(i.name)+' · '+esc(itemDesc(i))+'</span><span>'+brl(i.qty*i.price)+'</span></div>'}).join("")+'<div><span>Total</span><span>'+brl(cartTotal())+'</span></div></div>'
    + '<form id="kform" novalidate><div class="field"><label for="kn">Seu nome</label><input id="kn" autocomplete="name" required></div>'
    + '<div class="field"><label for="kw">Seu WhatsApp</label><input id="kw" type="tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" required></div>'
-   + '<div class="field"><span class="lb">Forma de pagamento</span><div class="paychoice"><label class="opt"><input type="radio" name="pay" value="Pix"'+(pay==="Pix"?' checked':'')+'><span>Pix<small>À vista, sem parcelamento</small></span></label><label class="opt"><input type="radio" name="pay" value="Cartão (InfinitePay)"'+(pay!=="Pix"?' checked':'')+'><span>Cartão<small>Pela InfinitePay, sem parcelamento</small></span></label></div></div>'
    + '<div class="field"><label for="ko">Observações (cidade, cor, dúvidas)</label><textarea id="ko" rows="2"></textarea></div>'
-   + '<p class="err" id="kErr" role="alert"></p><button class="btn wide" type="submit">Gerar código do pedido</button></form>';
+   + '<p class="err" id="kErr" role="alert"></p><button class="btn wide" type="submit">Continuar</button></form>';
   if(order){ $("#kn").value=order.nome; $("#kw").value=order.fone; $("#ko").value=order.obs }
   else { try{ var s=JSON.parse(localStorage.getItem("off_cli")||"{}"); $("#kn").value=s.n||""; $("#kw").value=s.w||"" }catch(e){} }
   $("#kform").onsubmit = function(e){
@@ -651,47 +649,53 @@ function openForm(){
     n.setAttribute("aria-invalid", !n.value.trim()); w.setAttribute("aria-invalid", w.value.replace(/\D/g,"").length<10);
     if(!n.value.trim()||w.value.replace(/\D/g,"").length<10){ $("#kErr").textContent="Preencha seu nome e um WhatsApp com DDD."; return }
     try{ localStorage.setItem("off_cli",JSON.stringify({n:n.value.trim(),w:w.value.trim()})) }catch(e){}
-    order = {code:makeCode(), nome:n.value.trim(), fone:w.value.trim(), obs:$("#ko").value.trim(), pay:(document.querySelector('input[name=pay]:checked')||{}).value||"Pix", items:cart.map(function(i){return Object.assign({},i)}), total:cartTotal()};
+    order = {code:makeCode(), nome:n.value.trim(), fone:w.value.trim(), obs:$("#ko").value.trim(), items:cart.map(function(i){return Object.assign({},i)}), total:cartTotal()};
     showOrder();
   };
   openOv("#kov"); $("#kov .panel").scrollTop=0;
 }
+function itemLink(i){
+  var base = CONFIG.siteUrl || (/^https?:/.test(location.protocol) ? location.href.split("#")[0] : "");
+  return base ? base + "#produto-" + i.pid : "";
+}
 function waMessage(o){
-  var L = ["Olá! Quero finalizar meu pedido na "+CONFIG.storeName+".","","*Pedido: "+o.code+"*","Cliente: "+o.nome,"WhatsApp: "+o.fone,"Pagamento: "+o.pay+" (à vista, sem parcelamento)","","*Itens:*"];
-  o.items.forEach(function(i){ L.push("• "+i.qty+"x "+i.name+" — "+itemDesc(i)+" — "+brl(i.qty*i.price)) });
+  var L = ["Olá! Quero fazer um pedido na "+CONFIG.storeName+".","","*Pedido: "+o.code+"*","Cliente: "+o.nome,"WhatsApp: "+o.fone,"","*Peças:*"];
+  o.items.forEach(function(i){
+    L.push("• "+i.qty+"x "+i.name+" — "+itemDesc(i)+" — "+brl(i.qty*i.price));
+    var u=itemLink(i); if(u) L.push("  Ver peça: "+u);
+  });
   L.push("","*Total: "+brl(o.total)+"*"); if(o.obs) L.push("","Obs.: "+o.obs);
-  L.push("","Já fiz o pagamento e envio o comprovante em seguida.");
+  L.push("","Aguardo o retorno para combinar frete e pagamento.");
   return L.join("\n");
 }
 function waUrl(text){ return "https://wa.me/"+(CONFIG.whatsapp||"")+"?text="+encodeURIComponent(text) }
-function payUrl(o){ return CONFIG.paymentUrl + (CONFIG.paymentUrl.indexOf("?")>-1?"&":"?") + "pedido="+encodeURIComponent(o.code)+"&valor="+o.total.toFixed(2) }
 function showOrder(){
   var o=order, msg=waMessage(o);
-  $("#kbody").innerHTML = '<h3 id="kTitle">Pedido gerado</h3><p class="lede">Guarde o código e siga os dois passos para concluir sua compra.</p>'
+  $("#kbody").innerHTML = '<h3 id="kTitle">Resumo do pedido</h3><p class="lede">Falta só um passo: enviar o pedido para a OFF.</p>'
    + '<div class="codebox"><div><small>Código do pedido</small><b id="kCode">'+o.code+'</b></div><button class="btn ghost" id="kCopy" type="button">Copiar código</button></div>'
-   + '<div class="steps"><div class="step"><i>1</i><div><h4>Faça o pagamento</h4><p>'+esc(o.pay)+' · '+brl(o.total)+' à vista. Use o código '+o.code+' no pagamento.</p><a class="btn wide" id="kPay" href="'+esc(payUrl(o))+'" target="_blank" rel="noopener">Ir para o pagamento</a><p class="err" id="kPayMsg" role="status" style="margin-top:8px"></p></div></div>'
-   + '<div class="step"><i>2</i><div><h4>Envie o pedido para a Rúbia</h4><p>Abre o WhatsApp com o resumo pronto, com peças e valores. Ela confirma o pagamento, combina o frete e finaliza com você.</p><a class="btn wa wide" id="kWa" href="'+esc(waUrl(msg))+'" target="_blank" rel="noopener">Enviar pedido no WhatsApp</a></div></div></div>'
-   + '<h4 style="font-size:22px;margin-bottom:8px">Resumo do pedido</h4><div class="mini">'+o.items.map(function(i){return '<div><span>'+i.qty+'× '+esc(i.name)+' · '+esc(itemDesc(i))+'</span><span>'+brl(i.qty*i.price)+'</span></div>'}).join("")+'<div><span>Total</span><span>'+brl(o.total)+'</span></div></div>'
+   + '<div class="steps"><div class="step"><i>1</i><div><h4>Envie o pedido pelo WhatsApp</h4><p>Abre a conversa com a OFF com o resumo pronto, com peças, valores e o link de cada peça. É lá que você combina frete e pagamento e finaliza o atendimento.</p><a class="btn wa wide" id="kWa" href="'+esc(waUrl(msg))+'" target="_blank" rel="noopener">Enviar pedido no WhatsApp</a></div></div></div>'
+   + '<div class="mini">'+o.items.map(function(i){return '<div><span>'+i.qty+'× '+esc(i.name)+' · '+esc(itemDesc(i))+'</span><span>'+brl(i.qty*i.price)+'</span></div>'}).join("")+'<div><span>Total</span><span>'+brl(o.total)+'</span></div></div>'
    + '<p class="note">'+esc(o.nome)+' · '+esc(o.fone)+(o.obs?' · '+esc(o.obs):'')+'</p>'
-   + '<button class="btn ghost wide" id="kNew" type="button" style="margin-top:16px">Esvaziar carrinho e voltar à loja</button>';
+   + '<button class="btn ghost wide" id="kNew" type="button" style="margin-top:16px">Limpar carrinho e voltar à loja</button>';
   $("#kCopy").onclick = function(){
     var done=function(){toast("Código copiado")};
     try{ navigator.clipboard.writeText(o.code).then(done,function(){ sel() }) }catch(e){ sel() }
     function sel(){ var r=document.createRange(); r.selectNodeContents($("#kCode")); var s=getSelection(); s.removeAllRanges(); s.addRange(r); toast("Código selecionado, copie com Ctrl+C") }
   };
-  $("#kPay").onclick = function(e){
-    if(CONFIG.paymentUrl.indexOf("SEU-LINK")>-1){ e.preventDefault(); $("#kPayMsg").textContent="O link de pagamento ainda está sendo configurado. Envie o pedido pelo passo 2 e a Rúbia envia o link para você."; }
-  };
   $("#kNew").onclick = function(){ cart=[]; saveCart(); order=null; renderCart(); closeOv($("#kov")); toast("Obrigada! Até a próxima.") };
   $("#kov .panel").scrollTop=0;
 }
+
+/* ---- link direto da peça (#produto-ID) ---- */
+function openFromHash(){ var m=/^#produto-([\w-]+)$/.exec(location.hash); if(m&&byId[m[1]]){ filter="todos"; renderChips(); renderGrid(); openProduct(m[1]) } }
+addEventListener("hashchange",openFromHash);
 
 /* ---- páginas ---- */
 (function init(){
   var m=["Treine","Corra","Respire","Viva em movimento","Sinta-se livre","Vá além"], h="";
   for(var r=0;r<4;r++) m.forEach(function(w){ h+='<span>'+w+'</span><i>●</i>' });
   $("#mq").innerHTML=h;
-  renderChips(); renderGrid(); renderCart();
+  renderChips(); renderGrid(); renderCart(); openFromHash();
   var wa = waUrl("Olá! Vim pelo site da OFF Moda Fitness e gostaria de atendimento.");
   ["#ctWa","#fabWa"].forEach(function(s){ $(s).href=wa });
   if(CONFIG.instagram) $("#ctIg").href=CONFIG.instagram;
